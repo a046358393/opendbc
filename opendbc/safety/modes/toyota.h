@@ -383,6 +383,14 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
     }
   }
 
+  // SP Auto Brake Hold: allow a custom PRE_COLLISION_2 command only in the
+  // standstill, cruise-off, no-gas state, and only when explicitly enabled.
+  if (msg_matches(msg, 0x344U, 0U) && (alternative_experience & ALT_EXP_ALLOW_AEB)) {
+    if (vehicle_moving || gas_pressed || !acc_main_on || toyota_cruise_engaged) {
+      tx = false;
+    }
+  }
+
   // UDS: Only tester present ("\x0F\x02\x3E\x00\x00\x00\x00\x00") allowed on diagnostics address
   if (msg->addr == 0x750U) {
     // this address is sub-addressed. only allow tester present to radar (0xF)
@@ -561,10 +569,21 @@ static safety_config toyota_init(uint16_t param) {
   return ret;
 }
 
+static bool toyota_fwd_hook(int bus_num, int addr) {
+  if (bus_num != 2) {
+    return false;
+  }
+
+  bool is_aeb_msg = (addr == 0x344);
+  return is_aeb_msg && (alternative_experience & ALT_EXP_ALLOW_AEB) &&
+         !vehicle_moving && !gas_pressed && acc_main_on && !toyota_cruise_engaged;
+}
+
 const safety_hooks toyota_hooks = {
   .init = toyota_init,
   .rx = toyota_rx_hook,
   .tx = toyota_tx_hook,
+  .fwd = toyota_fwd_hook,
   .get_checksum = toyota_get_checksum,
   .compute_checksum = toyota_compute_checksum,
   .get_quality_flag_valid = toyota_get_quality_flag_valid,

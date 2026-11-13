@@ -12,6 +12,8 @@ from opendbc.car.toyota.values import CAR, NO_STOP_TIMER_CAR, TSS2_CAR, \
                                         CarControllerParams, ToyotaFlags
 from opendbc.can import CANPacker
 
+from opendbc.sunnypilot.car.toyota.auto_brake_hold import AutoBrakeHoldCarController
+from opendbc.sunnypilot.car.toyota.brake_onset import BrakeOnsetShaper, BrakeCommandCorrections, EngageOnsetShaper
 from opendbc.sunnypilot.car.toyota.gas_interceptor import GasInterceptorCarController
 from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP, TSS2_SMOOTH_KI
 
@@ -75,8 +77,13 @@ class CarController(CarControllerBase, GasInterceptorCarController):
 
     self.accel = 0
     self.prev_accel = 0
+    self.brake_onset_enabled = bool(CP_SP.flags & ToyotaFlagsSP.SP_BRAKE_ONSET.value)
+    self.brake_onset = BrakeOnsetShaper(DT_CTRL * 3, -ACCEL_WINDDOWN_LIMIT / (DT_CTRL * 3))
+    self.engage_onset = EngageOnsetShaper(DT_CTRL * 3, ACCEL_WINDUP_LIMIT / (DT_CTRL * 3))
+    self.brake_corrections = BrakeCommandCorrections(DT_CTRL * 3)
     # *** end long control state ***
 
+    self.auto_brake_hold = AutoBrakeHoldCarController(CP, CP_SP)
     self.packer = CANPacker(dbc_names[Bus.pt])
 
     self.secoc_lka_message_counter = 0
@@ -97,6 +104,8 @@ class CarController(CarControllerBase, GasInterceptorCarController):
 
     # *** control msgs ***
     can_sends = []
+    if self.auto_brake_hold.enabled:
+      can_sends.extend(self.auto_brake_hold.update(CS, self.frame, self.packer))
 
     # *** handle secoc reset counter increase ***
     if self.CP.flags & ToyotaFlags.SECOC.value:
@@ -216,8 +225,21 @@ class CarController(CarControllerBase, GasInterceptorCarController):
 
         # internal PCM gas command can get stuck unwinding from negative accel so we apply a generous rate limit
         pcm_accel_cmd = actuators.accel
-        if CC.longActive:
+        if self.brake_onset_enabled:
+          self.engage_onset.cruise_state(CS.out.cruiseState.enabled)
+        if CC.longActive and self.brake_onset_enabled:
+          self.prev_accel = self.engage_onset.start_accel(self.prev_accel, CS.out.aEgo, CS.out.vEgo)
+          urgent = self.brake_onset.is_urgent(pcm_accel_cmd, fcw_alert) and not self.engage_onset.in_engage_window
+          winddown_step = self.brake_onset.down_step(pcm_accel_cmd, self.prev_accel, bypass=fcw_alert, v_ego=CS.out.vEgo,
+                                                     urgent=urgent, t_engaged=self.engage_onset.t_since_engage,
+                                                     a_ego=CS.out.aEgo, brake_force=CS.brake_force)
+          windup_step = self.engage_onset.up_step(True)
+          pcm_accel_cmd = rate_limit(pcm_accel_cmd, self.prev_accel, winddown_step, windup_step)
+        elif CC.longActive:
           pcm_accel_cmd = rate_limit(pcm_accel_cmd, self.prev_accel, ACCEL_WINDDOWN_LIMIT, ACCEL_WINDUP_LIMIT)
+        else:
+          self.brake_onset.reset()
+          self.engage_onset.reset()
         self.prev_accel = pcm_accel_cmd
 
         # calculate amount of acceleration PCM should apply to reach target, given pitch.
@@ -253,12 +275,18 @@ class CarController(CarControllerBase, GasInterceptorCarController):
                                                -MAX_PITCH_COMPENSATION, MAX_PITCH_COMPENSATION))
             pcm_accel_cmd += pitch_compensation
 
+          freeze_i = self.brake_onset_enabled and self.brake_corrections.condition_pid(self.long_pid, self.prev_accel, CS.out.vEgo)
           pcm_accel_cmd = self.long_pid.update(error_future,
                                                speed=CS.out.vEgo,
                                                feedforward=pcm_accel_cmd,
-                                               freeze_integrator=actuators.longControlState != LongCtrlState.pid)
+                                               freeze_integrator=actuators.longControlState != LongCtrlState.pid or freeze_i)
+          if self.brake_onset_enabled:
+            pcm_accel_cmd = self.brake_corrections.apply(pcm_accel_cmd, self.prev_accel, a_ego_future, CS.out.vEgo, stopping,
+                                                        fcw_alert, a_ego=a_ego_blended,
+                                                        relaxed=hud_control.leadDistanceBars == 3)
         else:
           self.long_pid.reset()
+          self.brake_corrections.reset()
 
         # Along with rate limiting positive jerk above, this greatly improves gas response time
         # Consider the net acceleration request that the PCM should be applying (pitch included)
