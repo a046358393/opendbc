@@ -18,9 +18,11 @@ SteerControlType = structs.CarParams.SteerControlType
 
 
 class AccelPersonality(IntEnum):
-  eco = 0
+  # Values intentionally match cereal.Log.LongitudinalPersonality:
+  # aggressive=0, standard=1, relaxed=2.
+  eco = 2
   normal = 1
-  sport = 2
+  sport = 0
 
 
 def get_accel_personality(sport_mode: int, eco_mode: int) -> AccelPersonality:
@@ -138,7 +140,7 @@ class CarState(CarStateBase, CarStateExt):
       eco_mode = cp.vl["GEAR_PACKET"]['ECON_ON'] if self._eco_signal_available else 0
       accel_profile = get_accel_personality(sport_mode, eco_mode)
       if not self._accel_profile_init or accel_profile != self._prev_accel_profile:
-        self._host_params.put('AccelPersonality', int(accel_profile))
+        self._host_params.put('LongitudinalPersonality', int(accel_profile))
         self._accel_profile_init = True
         self._prev_accel_profile = accel_profile
 
