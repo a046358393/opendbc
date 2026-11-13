@@ -18,7 +18,7 @@ from opendbc.car.gm.values import GMFlags
 from opendbc.car.honda.values import HondaFlags
 from opendbc.car.hyundai.values import HyundaiFlags
 from opendbc.car.subaru.values import SubaruFlags
-from opendbc.car.toyota.values import ToyotaFlags, TSS2_CAR, RADAR_ACC_CAR, SECOC_CAR
+from opendbc.car.toyota.values import CAR, ToyotaFlags, TSS2_CAR, RADAR_ACC_CAR, SECOC_CAR
 from opendbc.car.volkswagen.values import VolkswagenFlags
 from opendbc.car.toyota.values import ToyotaSafetyFlags
 from opendbc.sunnypilot.car.hyundai.enable_radar_tracks import enable_radar_tracks as hyundai_enable_radar_tracks
@@ -204,5 +204,6 @@ def _initialize_toyota(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params
     if toyota_auto_brake_hold and CP.carFingerprint in (TSS2_CAR - RADAR_ACC_CAR - SECOC_CAR):
       CP_SP.flags |= ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD.value
 
-    if toyota_brake_onset and CP.openpilotLongitudinalControl and CP.flags & ToyotaFlags.TSS2:
+    if (toyota_brake_onset and CP.openpilotLongitudinalControl and
+        CP.carFingerprint == CAR.TOYOTA_COROLLA_TSS2 and CP.flags & ToyotaFlags.HYBRID):
       CP_SP.flags |= ToyotaFlagsSP.SP_BRAKE_ONSET.value
