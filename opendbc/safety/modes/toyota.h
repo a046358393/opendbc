@@ -69,6 +69,7 @@ static bool toyota_secoc = false;
 static bool toyota_alt_brake = false;
 static bool toyota_stock_longitudinal = false;
 static bool toyota_lta = false;
+static bool toyota_cruise_engaged = false;  // SP: gate Auto Brake Hold AEB override to cruise-off state
 static int toyota_dbc_eps_torque_factor = 100;   // conversion factor for STEER_TORQUE_EPS in %: see dbc file
 
 static uint32_t toyota_compute_checksum(const CANPacket_t *msg) {
@@ -149,6 +150,7 @@ static void toyota_rx_hook(const CANPacket_t *msg) {
     if (msg_matches(msg, 0x176U, 0U)) {
       bool cruise_engaged = GET_BIT(msg, 5U);  // PCM_CRUISE.CRUISE_ACTIVE
       pcm_cruise_check(cruise_engaged);
+      toyota_cruise_engaged = cruise_engaged;
     }
     if (msg_matches(msg, 0x116U, 0U)) {
       gas_pressed = msg->data[1] != 0U;  // GAS_PEDAL.GAS_PEDAL_USER
@@ -160,6 +162,7 @@ static void toyota_rx_hook(const CANPacket_t *msg) {
     if (msg_matches(msg, 0x1D2U, 0U)) {
       bool cruise_engaged = GET_BIT(msg, 5U);  // PCM_CRUISE.CRUISE_ACTIVE
       pcm_cruise_check(cruise_engaged);
+      toyota_cruise_engaged = cruise_engaged;
 
       if (!enable_gas_interceptor) {
         gas_pressed = !GET_BIT(msg, 4U);  // PCM_CRUISE.GAS_RELEASED
@@ -404,6 +407,8 @@ static bool toyota_tx_hook(const CANPacket_t *msg) {
 }
 
 static safety_config toyota_init(uint16_t param) {
+  toyota_cruise_engaged = false;
+
   static const CanMsg TOYOTA_TX_MSGS[] = {
     TOYOTA_COMMON_TX_MSGS
   };
