@@ -1,8 +1,11 @@
 import unittest
 from types import SimpleNamespace
 
+import numpy as np
+
 from opendbc.sunnypilot.car.toyota.brake_onset import (BrakeHandoverFeedforward, HANDOVER_EXTRA_MAX,
-                                                       HANDOVER_EXTRA_FRAC, HANDOVER_RATE, PID_BLEED_NEG, PID_BLEED_POS)
+                                                       HANDOVER_EXTRA_FRAC, HANDOVER_RATE, LOW_EXTRA, LOW_EXTRA_V_BP,
+                                                       PID_BLEED_NEG, PID_BLEED_POS)
 
 DT = 0.03
 class TestHandoverFeedforward(unittest.TestCase):
@@ -21,8 +24,10 @@ class TestHandoverFeedforward(unittest.TestCase):
     self.assertAlmostEqual(self.run_steady(-0.5, 12.0).extra, HANDOVER_EXTRA_FRAC * 0.5, places=9)
 
   def test_fades_at_the_edges(self):
-    self.assertAlmostEqual(self.run_steady(-1.0, 8.0).extra, 0.5 * HANDOVER_EXTRA_MAX, places=6)
-    self.assertEqual(self.run_steady(-1.0, 5.0).extra, 0.0)
+    expected_at_8 = 0.5 * HANDOVER_EXTRA_MAX + float(np.interp(8.0 / 3.6, LOW_EXTRA_V_BP, LOW_EXTRA))
+    expected_at_5 = float(np.interp(5.0 / 3.6, LOW_EXTRA_V_BP, LOW_EXTRA))
+    self.assertAlmostEqual(self.run_steady(-1.0, 8.0).extra, expected_at_8, places=6)
+    self.assertAlmostEqual(self.run_steady(-1.0, 5.0).extra, expected_at_5, places=6)
     self.assertEqual(self.run_steady(-1.0, 20.0).extra, 0.0)
     self.assertEqual(self.run_steady(-0.25, 12.0).extra, 0.0)
 
