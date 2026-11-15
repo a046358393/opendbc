@@ -40,6 +40,12 @@ def get_host_params():
   except ModuleNotFoundError:
     return None
 
+
+def is_toyota_drive_mode_enabled(CP, param_enabled: bool) -> bool:
+  """Require the UI preference and the same TSS2/longitudinal gates as Toyota settings."""
+  return bool(param_enabled and CP.openpilotLongitudinalControl and
+              CP.flags & ToyotaFlags.TSS2 and not CP.flags & ToyotaFlags.SECOC.value)
+
 # These steering fault definitions seem to be common across LKA (torque) and LTA (angle):
 # - high steer rate fault: goes to 21 or 25 for 1 frame, then 9 for 2 seconds
 # - lka/lta msg drop out: goes to 9 then 11 for a combined total of 2 seconds, then 3.
@@ -85,7 +91,8 @@ class CarState(CarStateBase, CarStateExt):
     self.pre_collision_2 = {}
     self.brake_force = float('nan')
     self._host_params = get_host_params()
-    self.toyota_drive_mode = self._host_params is not None and self._host_params.get_bool('ToyotaDriveMode')
+    drive_mode_param = self._host_params is not None and self._host_params.get_bool('ToyotaDriveMode')
+    self.toyota_drive_mode = is_toyota_drive_mode_enabled(CP, drive_mode_param)
     self._drive_mode_signals_checked = False
     self._sport_signal_available = False
     self._eco_signal_available = False
