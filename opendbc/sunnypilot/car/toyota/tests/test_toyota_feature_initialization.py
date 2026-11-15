@@ -16,6 +16,16 @@ def build_params(fingerprint=CAR.TOYOTA_COROLLA_TSS2, *, hybrid=True, longitudin
 
 
 class TestToyotaFeatureInitialization(unittest.TestCase):
+  def test_auto_brake_hold_is_enabled_for_supported_tss2_corolla(self):
+    CP, CP_SP = build_params()
+    _initialize_toyota(CP, CP_SP, {"ToyotaAutoHold": "1"})
+    self.assertTrue(CP_SP.flags & ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD)
+
+  def test_auto_brake_hold_is_not_enabled_for_radar_acc_platform(self):
+    CP, CP_SP = build_params(fingerprint=CAR.TOYOTA_RAV4_TSS2_2022)
+    _initialize_toyota(CP, CP_SP, {"ToyotaAutoHold": "1"})
+    self.assertFalse(CP_SP.flags & ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD)
+
   def test_brake_onset_is_enabled_only_for_corolla_tss2_hybrid_with_longitudinal(self):
     CP, CP_SP = build_params()
     _initialize_toyota(CP, CP_SP, {"ToyotaBrakeOnset": "1"})
