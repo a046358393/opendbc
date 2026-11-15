@@ -26,6 +26,11 @@ class TestToyotaFeatureInitialization(unittest.TestCase):
     _initialize_toyota(CP, CP_SP, {"ToyotaAutoHold": "1"})
     self.assertFalse(CP_SP.flags & ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD)
 
+  def test_auto_brake_hold_defaults_to_disabled(self):
+    CP, CP_SP = build_params()
+    _initialize_toyota(CP, CP_SP, {})
+    self.assertFalse(CP_SP.flags & ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD)
+
   def test_brake_onset_is_enabled_only_for_corolla_tss2_hybrid_with_longitudinal(self):
     CP, CP_SP = build_params()
     _initialize_toyota(CP, CP_SP, {"ToyotaBrakeOnset": "1"})
