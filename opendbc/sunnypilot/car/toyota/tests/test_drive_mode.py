@@ -2,7 +2,8 @@ import unittest
 
 from opendbc.car import structs
 from opendbc.car.toyota.values import ToyotaFlags
-from opendbc.car.toyota.carstate import AccelPersonality, get_accel_personality, is_toyota_drive_mode_enabled
+from opendbc.car.toyota.carstate import (AccelPersonality, get_accel_personality,
+                                         is_toyota_drive_mode_enabled)
 
 
 class TestDriveMode(unittest.TestCase):
@@ -13,7 +14,6 @@ class TestDriveMode(unittest.TestCase):
     self.assertEqual(int(get_accel_personality(0, 1)), 2)
     self.assertEqual(int(get_accel_personality(1, 0)), 0)
     self.assertEqual(int(get_accel_personality(1, 1)), 0)
-
 
   def test_drive_mode_requires_tss2_longitudinal_and_user_preference(self):
     cp = structs.CarParams(flags=ToyotaFlags.TSS2.value)
