@@ -1,3 +1,5 @@
+import unittest
+
 import numpy as np
 
 from opendbc.car import rate_limit, DT_CTRL
@@ -23,7 +25,7 @@ def at(out, t):
   return out[int(round(t / DT)) - 1]
 
 
-class TestBrakeOnset:
+class TestBrakeOnset(unittest.TestCase):
   def test_step_brake_eases_in_over_the_first_second(self):
     out = run([-1.5] * 60)
     assert at(out, 0.09) > -0.06  # first 0.15 s: barely anything
@@ -84,7 +86,7 @@ class TestBrakeOnset:
     assert shaper.t_onset == 0.0
 
 
-class TestEngageBrake:
+class TestEngageBrake(unittest.TestCase):
   """2026-10-04: SET- while creeping up to a lead: the first 0.2 s after engaging is a light touch."""
   def test_first_0_2_s_after_engaging_is_light_then_blends_to_stock(self):
     from opendbc.sunnypilot.car.toyota.brake_onset import BrakeOnsetShaper, EngageOnsetShaper, ENGAGE_BRAKE_T_BP
@@ -105,7 +107,7 @@ class TestEngageBrake:
     assert ENGAGE_BRAKE_T_BP[-1] <= 1.0
 
 
-class TestCreepOnset:
+class TestCreepOnset(unittest.TestCase):
   """2026-10-04: a brake onset at creep speed (re-stop behind a lead) is as light as the engage schedule."""
   def test_below_10kph_first_0_2_s_is_light(self):
     from opendbc.sunnypilot.car.toyota.brake_onset import BrakeOnsetShaper
@@ -122,7 +124,7 @@ class TestCreepOnset:
       assert a < -0.9, (v, a)   # the full request arrives within the window at both speeds
 
 
-class TestCreepGasRelease:
+class TestCreepGasRelease(unittest.TestCase):
   """route 0000010d 23:56:59: the drop from a +0.5 launch request was shaped like a brake onset"""
   def _shaper(self):
     from opendbc.sunnypilot.car.toyota.brake_onset import BrakeOnsetShaper
@@ -140,7 +142,7 @@ class TestCreepGasRelease:
     assert step > -4.0 * DT_CTRL * 3 + 1e-9
 
 
-class TestResumeSoftStart:
+class TestResumeSoftStart(unittest.TestCase):
   """RES while coasting at 46 km/h: start from the coasting decel, 0.6 m/s^3 for 0.4 s, stock by 0.8 s"""
   def _run(self, a_ego=-0.45, v=46.0, req=0.4, edge=True, n=40):
     from opendbc.sunnypilot.car.toyota.brake_onset import EngageOnsetShaper
