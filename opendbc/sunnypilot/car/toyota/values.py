@@ -15,6 +15,8 @@ class ToyotaFlagsSP(IntFlag):
   STOCK_LONGITUDINAL = 8
   STOP_AND_GO_HACK = 16
   TSS2_SMOOTH = 32
+  SP_AUTO_BRAKE_HOLD = 128
+  SP_BRAKE_ONSET = 256
 
 
 # kiBP, kiV for the PCM accel PID with TSS2_SMOOTH

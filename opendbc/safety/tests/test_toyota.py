@@ -6,6 +6,7 @@ import unittest
 import itertools
 
 from opendbc.car.toyota.values import ToyotaSafetyFlags
+from opendbc.safety import ALTERNATIVE_EXPERIENCE
 from opendbc.sunnypilot.car.toyota.values import ToyotaSafetyFlagsSP
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py
@@ -159,6 +160,42 @@ class TestToyotaSafetyBase(common.CarSafetyTest, common.LongitudinalAccelSafetyT
     # OVERRIDDEN: 72.22_ is the max speed in m/s
     self._common_measurement_test(self._speed_msg, 0, 259 / 3.6, 1,
                                   self.safety.get_vehicle_speed_min, self.safety.get_vehicle_speed_max)
+class TestToyotaAutoBrakeHoldSafety(TestToyotaSafetyBase):
+  """Auto Brake Hold must only override PCS/AEB forwarding at a safe standstill."""
+
+  def _set_hold_conditions(self, *, speed=0.0, gas=False, cruise=False, acc_main=True):
+    self._rx(self._speed_msg(speed))
+    self._rx(self._acc_state_msg(acc_main))
+    self._rx(self._pcm_status_msg(cruise))
+    self._rx(self._user_gas_msg(gas))
+
+  def test_auto_brake_hold_tx_and_forwarding_are_gated_together(self):
+    self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.ALLOW_AEB)
+    pcs_override = libsafety_py.make_CANPacket(0x344, 0, bytes(8))
+
+    cases = (
+      # speed, gas, cruise, ACC main, safe override
+      (0.0, False, False, True, True),
+      (1.0, False, False, True, False),
+      (0.0, True, False, True, False),
+      (0.0, False, True, True, False),
+      (0.0, False, False, False, False),
+    )
+    for speed, gas, cruise, acc_main, allowed in cases:
+      with self.subTest(speed=speed, gas=gas, cruise=cruise, acc_main=acc_main):
+        self.safety.init_tests()
+        self.safety.set_alternative_experience(ALTERNATIVE_EXPERIENCE.ALLOW_AEB)
+        self._set_hold_conditions(speed=speed, gas=gas, cruise=cruise, acc_main=acc_main)
+
+        self.assertEqual(allowed, self._tx(pcs_override))
+        expected_fwd_bus = -1 if allowed else 0
+        self.assertEqual(expected_fwd_bus, self.safety.safety_fwd_hook(2, 0x344))
+
+  def test_without_allow_aeb_original_pcs_forwarding_is_preserved(self):
+    self._set_hold_conditions()
+    self.assertEqual(0, self.safety.safety_fwd_hook(2, 0x344))
+
+
 class TestToyotaSafetyGasInterceptorBase(GasInterceptorSafetyTest, TestToyotaSafetyBase):
 
   TX_MSGS = TOYOTA_COMMON_TX_MSGS + TOYOTA_COMMON_LONG_TX_MSGS + GAS_INTERCEPTOR_TX_MSGS
