@@ -10,12 +10,12 @@ STOCK_J = 4.0
 UP_STEP = 4.0 * DT
 
 
-def run(requests, a0=0.0, fcw=False):
+def run(requests, a0=0.0, fcw=False, v_ego=15.0):
   shaper = BrakeOnsetShaper(DT, STOCK_J)
   a = a0
   out = []
   for req in requests:
-    step = shaper.down_step(req, a, bypass=shaper.is_urgent(req, fcw))
+    step = shaper.down_step(req, a, bypass=shaper.is_urgent(req, fcw), v_ego=v_ego)
     a = rate_limit(req, a, step, UP_STEP)
     out.append(a)
   return np.array(out)
